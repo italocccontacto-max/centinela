@@ -50,7 +50,7 @@ class InterruptActivity : ComponentActivity() {
         "¿Esto es urgente o solo cómodo?"
     )
 
-    private val FALLBACKS = listOf(
+    private val FALLBACKS_LIST = listOf(
         "La disciplina es elegir entre lo que quieres ahora y lo que quieres más.",
         "No hay versión exitosa de ti que haga lo que estás haciendo ahora.",
         "Cada vez que cedes, le enseñas a tu cerebro que puede cederse.",
@@ -85,9 +85,14 @@ class InterruptActivity : ComponentActivity() {
         val timeMs = intent.getLongExtra("time_ms", 0L)
         val minutes = timeMs / 60000
 
+        val customQ = loadCustomQuestions(this)
+        val customP = loadCustomPhrases(this)
+        val allQuestions = QUESTIONS + customQ
+        val allPhrases = FALLBACKS_LIST + customP
+
         setContent {
             InterruptScreen(
-                questions = QUESTIONS,
+                questions = allQuestions,
                 minutes = minutes,
                 videoUri = videoUri,
                 mediaIsVideo = prefs.getBoolean("media_is_video", true),

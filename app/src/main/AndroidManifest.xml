@@ -36,6 +36,18 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.Centinela.Fullscreen"/>
 
+        <activity
+            android:name=".contract.NightlyContractActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Centinela"/>
+
+        <activity
+            android:name=".contract.MorningReadingActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Centinela"/>
+
         <service
             android:name=".guardian.GuardianService"
             android:exported="false"
@@ -53,6 +65,10 @@
                 android:resource="@xml/accessibility_service_config"/>
         </service>
 
+        <service
+            android:name=".contract.MorningReadingCheckService"
+            android:exported="false"/>
+
         <receiver
             android:name=".guardian.BootReceiver"
             android:exported="true">
@@ -61,44 +77,14 @@
             </intent-filter>
         </receiver>
 
-        <activity
-        android:name=".contract.MorningReadingActivity"
-        android:exported="false"
-        android:showWhenLocked="true"
-        android:turnScreenOn="true"
-        android:theme="@style/Theme.Centinela"/>
+        <receiver
+            android:name=".contract.ScreenStateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_ON"/>
+            </intent-filter>
+        </receiver>
 
-    <service
-        android:name=".contract.MorningReadingCheckService"
-        android:exported="false"/>
-
-    <receiver
-        android:name=".contract.ScreenStateReceiver"
-        android:exported="false">
-        <intent-filter>
-            <action android:name="android.intent.action.SCREEN_ON"/>
-        </intent-filter>
-    </receiver>
-
-    <activity
-        android:name=".contract.MorningReadingActivity"
-        android:exported="false"
-        android:showWhenLocked="true"
-        android:turnScreenOn="true"
-        android:theme="@style/Theme.Centinela"/>
-
-    <service
-        android:name=".contract.MorningReadingCheckService"
-        android:exported="false"/>
-
-    <receiver
-        android:name=".contract.ScreenStateReceiver"
-        android:exported="false">
-        <intent-filter>
-            <action android:name="android.intent.action.SCREEN_ON"/>
-        </intent-filter>
-    </receiver>
-
-</application>
+    </application>
 
 </manifest>

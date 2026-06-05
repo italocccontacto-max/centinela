@@ -4,6 +4,7 @@ import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import com.centinela.app.contract.NightlyContractActivity
+import com.centinela.app.CustomQuestionsActivity
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -47,7 +48,8 @@ class MainActivity : ComponentActivity() {
     fun CentinelaMain() {
         val hasUsage = hasUsagePermission()
         val hasOverlay = Settings.canDrawOverlays(this)
-        val isRunning = remember { mutableStateOf(false) }
+        val prefs = getSharedPreferences("centinela", MODE_PRIVATE)
+        val isRunning = remember { mutableStateOf(prefs.getBoolean("guardian_active", false)) }
 
         CentinelaApp(
             hasUsagePermission = hasUsage,
@@ -67,9 +69,13 @@ class MainActivity : ComponentActivity() {
             onStartGuardian = {
                 startGuardianService()
                 isRunning.value = true
+                prefs.edit().putBoolean("guardian_active", true).apply()
             },
             onOpenContract = {
                 startActivity(Intent(this, NightlyContractActivity::class.java))
+            },
+            onOpenCustomQuestions = {
+                startActivity(Intent(this, CustomQuestionsActivity::class.java))
             }
         )
     }
@@ -98,7 +104,8 @@ fun CentinelaApp(
     onRequestUsage: () -> Unit,
     onRequestOverlay: () -> Unit,
     onStartGuardian: () -> Unit,
-    onOpenContract: () -> Unit
+    onOpenContract: () -> Unit,
+    onOpenCustomQuestions: () -> Unit
 ) {
     val allGranted = hasUsagePermission && hasOverlayPermission
 
@@ -168,18 +175,43 @@ fun CentinelaApp(
                         onClick = onStartGuardian
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     
-                    androidx.compose.material3.Text(
-                        text = "✦ CONTRATO NOCTURNO",
-                        color = Color(0xFF444444),
-                        fontSize = 11.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        letterSpacing = 3.sp,
-                        modifier = Modifier.clickable {
-                            onOpenContract()
-                        }
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color(0xFF222222), RoundedCornerShape(0.dp))
+                            .clickable { onOpenContract() }
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "✦ CONTRATO NOCTURNO",
+                            color = Color(0xFF666666),
+                            fontSize = 11.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            letterSpacing = 3.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color(0xFF222222), RoundedCornerShape(0.dp))
+                            .clickable { onOpenCustomQuestions() }
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "✦ MIS PREGUNTAS Y FRASES",
+                            color = Color(0xFF666666),
+                            fontSize = 11.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            letterSpacing = 3.sp
+                        )
+                    }
                 }
             }
         }
