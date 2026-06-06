@@ -3,8 +3,7 @@ package com.centinela.app
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
-import com.centinela.app.contract.NightlyContractActivity
-import com.centinela.app.CustomQuestionsActivity
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -24,19 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.centinela.app.contract.NightlyContractActivity
+import com.centinela.app.contract.ScreenStateReceiver
 
 class MainActivity : ComponentActivity() {
-
-    override fun onResume() {
-        super.onResume()
-        setContent { CentinelaMain() }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,12 +53,10 @@ class MainActivity : ComponentActivity() {
                 startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
             },
             onRequestOverlay = {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                )
+                startActivity(Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                ))
             },
             onStartGuardian = {
                 startGuardianService()
@@ -94,6 +86,11 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, com.centinela.app.guardian.GuardianService::class.java)
         startForegroundService(intent)
     }
+
+    fun registerScreenReceiver(context: Context) {
+        val filter = IntentFilter(Intent.ACTION_SCREEN_ON)
+        context.registerReceiver(ScreenStateReceiver(), filter)
+    }
 }
 
 @Composable
@@ -122,7 +119,7 @@ fun CentinelaApp(
                 .padding(horizontal = 32.dp)
                 .fillMaxWidth()
         ) {
-            Text(text = "⚔", fontSize = 56.sp)
+            Text("⚔", fontSize = 56.sp)
 
             Text(
                 text = "CENTINELA",
@@ -161,60 +158,51 @@ fun CentinelaApp(
                 visible = allGranted,
                 enter = fadeIn() + expandVertically()
             ) {
-                if (isGuardianRunning) {
-                    Text(
-                        text = "● GUARDIÁN ACTIVO",
-                        color = Color(0xFF00CC44),
-                        fontSize = 12.sp,
-                        letterSpacing = 3.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                } else {
-                    SamuraiButton(
-                        text = "ACTIVAR CENTINELA",
-                        onClick = onStartGuardian
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFF222222), RoundedCornerShape(0.dp))
-                            .clickable { onOpenContract() }
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.material3.Text(
-                            text = "✦ CONTRATO NOCTURNO",
-                            color = Color(0xFF666666),
-                            fontSize = 11.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            letterSpacing = 3.sp
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isGuardianRunning) {
+                        Text(
+                            text = "● GUARDIÁN ACTIVO",
+                            color = Color(0xFF00CC44),
+                            fontSize = 12.sp,
+                            letterSpacing = 3.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        SamuraiButton(
+                            text = "ACTIVAR CENTINELA",
+                            onClick = onStartGuardian
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFF222222), RoundedCornerShape(0.dp))
-                            .clickable { onOpenCustomQuestions() }
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.material3.Text(
-                            text = "✦ MIS PREGUNTAS Y FRASES",
-                            color = Color(0xFF666666),
-                            fontSize = 11.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            letterSpacing = 3.sp
-                        )
-                    }
+                    MenuButton(text = "✦ CONTRATO NOCTURNO", onClick = onOpenContract)
+                    MenuButton(text = "✦ MIS PREGUNTAS Y FRASES", onClick = onOpenCustomQuestions)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun MenuButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF222222), RoundedCornerShape(0.dp))
+            .clickable { onClick() }
+            .padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFF666666),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 3.sp
+        )
     }
 }
 
@@ -250,7 +238,7 @@ fun PermissionRow(label: String, granted: Boolean, onClick: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = if (granted) "✓" else "→",
+            text = if (granted) "✓" else "–",
             color = if (granted) Color(0xFF00CC44) else Color(0xFFCC0000),
             fontSize = 16.sp,
             fontWeight = FontWeight.Black
@@ -284,13 +272,4 @@ fun SamuraiButton(text: String, onClick: () -> Unit) {
             fontWeight = FontWeight.Black
         )
     }
-}
-
-// CENTINELA - Screen Receiver Registration
-fun registerScreenReceiver(context: android.content.Context) {
-    val filter = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON)
-    context.registerReceiver(
-        com.centinela.app.contract.ScreenStateReceiver(),
-        filter
-    )
 }
