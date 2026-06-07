@@ -13,15 +13,25 @@ class GuardianService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var checkJob: Job? = null
-    private var lastInterruptedApp: String? = null
-    private var lastInterruptTime: Long = 0L
+    private val prefs by lazy {
+        getSharedPreferences("centinela", Context.MODE_PRIVATE)
+    }
+    private var lastInterruptedApp: String?
+        get() = prefs.getString("last_interrupted_app", null)
+        set(value) = prefs.edit().putString("last_interrupted_app", value).apply()
+    private var lastInterruptTime: Long
+        get() = prefs.getLong("last_interrupt_time", 0L)
+        set(value) = prefs.edit().putLong("last_interrupt_time", value).apply()
+    private var blockedUntil: Long
+        get() = prefs.getLong("blocked_until", 0L)
+        set(value) = prefs.edit().putLong("blocked_until", value).apply()
 
     companion object {
         const val CHANNEL_ID = "centinela_guardian"
         const val NOTIFICATION_ID = 1
         const val CHECK_INTERVAL_MS = 60_000L
         const val USAGE_THRESHOLD_MS = 20 * 60 * 1000L
-        const val COOLDOWN_MS = 30 * 60 * 1000L
+        const val COOLDOWN_MS = 10 * 60 * 1000L
         private val EXCLUDED_APPS = setOf(
             "com.centinela.app",
             "com.android.systemui",
@@ -57,7 +67,7 @@ class GuardianService : Service() {
     private fun checkUsage() {
         val usageStats = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val now = System.currentTimeMillis()
-        val windowStart = now - USAGE_THRESHOLD_MS
+        val windowStart = now - (60 * 60 * 1000L)
 
         val stats = usageStats.queryUsageStats(
             UsageStatsManager.INTERVAL_BEST,
@@ -65,13 +75,33 @@ class GuardianService : Service() {
             now
         )
 
+        val userBlockedApps = prefs.getStringSet("blocked_apps", null)
+            ?: setOf(
+                "com.google.android.youtube",
+                "com.instagram.android",
+                "com.zhiliaoapp.musically",
+                "com.twitter.android",
+                "com.facebook.katana"
+            )
+        val thresholdMinutes = prefs.getInt("usage_threshold_minutes", 20)
+        val usageThreshold = thresholdMinutes * 60 * 1000L
+
         val topApp = stats
-            ?.filter { it.packageName !in EXCLUDED_APPS }
+            ?.filter { it.packageName in userBlockedApps }
             ?.filter { it.lastTimeUsed >= windowStart }
             ?.maxByOrNull { it.totalTimeInForeground }
             ?: return
 
-        if (topApp.totalTimeInForeground < USAGE_THRESHOLD_MS) return
+        if (topApp.totalTimeInForeground < usageThreshold) return
+
+
+
+        // Si está en periodo de bloqueo, relanzar pantalla si intenta abrir la app
+        val now2 = System.currentTimeMillis()
+        if (now2 < blockedUntil) {
+            triggerInterrupt(topApp.packageName, topApp.totalTimeInForeground)
+            return
+        }
 
         val cooldownExpired = (now - lastInterruptTime) > COOLDOWN_MS
         val isDifferentApp = topApp.packageName != lastInterruptedApp

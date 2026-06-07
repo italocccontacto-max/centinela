@@ -37,6 +37,16 @@
             android:theme="@style/Theme.Centinela.Fullscreen"/>
 
         <activity
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Centinela"/>
+
+        <activity
+            android:name=".CustomQuestionsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Centinela"/>
+
             android:name=".contract.NightlyContractActivity"
             android:exported="false"
             android:theme="@style/Theme.Centinela"/>

@@ -68,6 +68,9 @@ class MainActivity : ComponentActivity() {
             },
             onOpenCustomQuestions = {
                 startActivity(Intent(this, CustomQuestionsActivity::class.java))
+            },
+            onOpenSettings = {
+                startActivity(Intent(this, SettingsActivity::class.java))
             }
         )
     }
@@ -102,7 +105,8 @@ fun CentinelaApp(
     onRequestOverlay: () -> Unit,
     onStartGuardian: () -> Unit,
     onOpenContract: () -> Unit,
-    onOpenCustomQuestions: () -> Unit
+    onOpenCustomQuestions: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val allGranted = hasUsagePermission && hasOverlayPermission
 
@@ -180,6 +184,7 @@ fun CentinelaApp(
 
                     MenuButton(text = "✦ CONTRATO NOCTURNO", onClick = onOpenContract)
                     MenuButton(text = "✦ MIS PREGUNTAS Y FRASES", onClick = onOpenCustomQuestions)
+                    MenuButton(text = "✦ CONFIGURACIÓN", onClick = onOpenSettings)
                 }
             }
         }

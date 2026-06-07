@@ -99,7 +99,7 @@ class InterruptActivity : ComponentActivity() {
                 videoHasSound = prefs.getBoolean("video_has_sound", true),
                 apiKey = prefs.getString("api_key", "") ?: "",
                 httpClient = httpClient,
-                onPickVideo = { mediaPicker.launch("image/* video/*") },
+                onPickVideo = { mediaPicker.launch(arrayOf("image/*", "video/*")) },
                 onContinue = { finish() },
                 onReturn = { finish() }
             )
@@ -234,7 +234,7 @@ fun InterruptScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = if (videoUri == null) "＋ Elegir video de fondo" else "↺ Cambiar video",
+                text = if (videoUri == null) "＋ Elegir video o imagen de fondo" else "↺ Cambiar video o imagen",
                 color = Color(0xFF444444),
                 fontSize = 12.sp,
                 letterSpacing = 2.sp,
