@@ -88,11 +88,19 @@ class GuardianService : Service() {
 
         val topApp = stats
             ?.filter { it.packageName in userBlockedApps }
-            ?.filter { it.lastTimeUsed >= windowStart }
+            ?.filter { it.lastTimeUsed >= (now - 10_000L) }
             ?.maxByOrNull { it.totalTimeInForeground }
             ?: return
 
-        if (topApp.totalTimeInForeground < usageThreshold) return
+        val sessionStart = now - usageThreshold
+        val recentStats = usageStats.queryUsageStats(
+            UsageStatsManager.INTERVAL_BEST, sessionStart, now
+        )
+        val sessionTime = recentStats
+            ?.filter { it.packageName == topApp.packageName }
+            ?.sumOf { it.totalTimeInForeground } ?: 0L
+
+        if (sessionTime < usageThreshold) return
 
 
 
