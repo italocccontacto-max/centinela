@@ -63,7 +63,7 @@ class InterruptActivity : ComponentActivity() {
 
     private var videoUri by mutableStateOf<Uri?>(null)
 
-    private val mediaPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    private val mediaPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             videoUri = it
             getSharedPreferences("centinela", MODE_PRIVATE)
