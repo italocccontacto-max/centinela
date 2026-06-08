@@ -13,15 +13,16 @@ class GuardianService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var checkJob: Job? = null
-    private val prefs by lazy {
-        getSharedPreferences("centinela", Context.MODE_PRIVATE)
-    }
+    private val prefs by lazy { getSharedPreferences("centinela", Context.MODE_PRIVATE) }
+
     private var lastInterruptedApp: String?
         get() = prefs.getString("last_interrupted_app", null)
         set(value) = prefs.edit().putString("last_interrupted_app", value).apply()
+
     private var lastInterruptTime: Long
         get() = prefs.getLong("last_interrupt_time", 0L)
         set(value) = prefs.edit().putLong("last_interrupt_time", value).apply()
+
     private var blockedUntil: Long
         get() = prefs.getLong("blocked_until", 0L)
         set(value) = prefs.edit().putLong("blocked_until", value).apply()
@@ -29,13 +30,13 @@ class GuardianService : Service() {
     companion object {
         const val CHANNEL_ID = "centinela_guardian"
         const val NOTIFICATION_ID = 1
-        const val CHECK_INTERVAL_MS = 60_000L
-        const val USAGE_THRESHOLD_MS = 20 * 60 * 1000L
+        // Intervalo normal: 5 segundos (antes 60s — era el bug principal del bypass)
+        const val CHECK_INTERVAL_MS = 5_000L
         const val COOLDOWN_MS = 10 * 60 * 1000L
+
         private val EXCLUDED_APPS = setOf(
             "com.centinela.app",
             "com.android.systemui",
-            "com.android.launcher3",
             "com.motorola.launcher3",
             "com.google.android.apps.nexuslauncher",
             "com.sec.android.app.launcher",
@@ -69,11 +70,7 @@ class GuardianService : Service() {
         val now = System.currentTimeMillis()
         val windowStart = now - (60 * 60 * 1000L)
 
-        val stats = usageStats.queryUsageStats(
-            UsageStatsManager.INTERVAL_BEST,
-            windowStart,
-            now
-        )
+        val stats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_BEST, windowStart, now)
 
         val userBlockedApps = prefs.getStringSet("blocked_apps", null)
             ?: setOf(
@@ -83,8 +80,13 @@ class GuardianService : Service() {
                 "com.twitter.android",
                 "com.facebook.katana"
             )
+
         val thresholdMinutes = prefs.getInt("usage_threshold_minutes", 20)
         val usageThreshold = thresholdMinutes * 60 * 1000L
+
+        // Leer duración de bloqueo configurable (default 10 minutos)
+        val blockDurationMinutes = prefs.getInt("block_duration_minutes", 10)
+        val blockDurationMs = blockDurationMinutes * 60 * 1000L
 
         val topApp = stats
             ?.filter { it.packageName in userBlockedApps }
@@ -92,21 +94,17 @@ class GuardianService : Service() {
             ?.maxByOrNull { it.totalTimeInForeground }
             ?: return
 
+        // Medir tiempo de sesión actual, no histórico
         val sessionStart = now - usageThreshold
-        val recentStats = usageStats.queryUsageStats(
-            UsageStatsManager.INTERVAL_BEST, sessionStart, now
-        )
+        val recentStats = usageStats.queryUsageStats(UsageStatsManager.INTERVAL_BEST, sessionStart, now)
         val sessionTime = recentStats
             ?.filter { it.packageName == topApp.packageName }
             ?.sumOf { it.totalTimeInForeground } ?: 0L
 
         if (sessionTime < usageThreshold) return
 
-
-
-        // Si está en periodo de bloqueo, relanzar pantalla si intenta abrir la app
-        val now2 = System.currentTimeMillis()
-        if (now2 < blockedUntil) {
+        // Si está en periodo de bloqueo activo, relanzar pantalla SIEMPRE
+        if (now < blockedUntil) {
             triggerInterrupt(topApp.packageName, topApp.totalTimeInForeground)
             return
         }
@@ -115,6 +113,8 @@ class GuardianService : Service() {
         val isDifferentApp = topApp.packageName != lastInterruptedApp
 
         if (isDifferentApp || cooldownExpired) {
+            // Activar bloqueo y guardarlo persistentemente
+            blockedUntil = now + blockDurationMs
             lastInterruptedApp = topApp.packageName
             lastInterruptTime = now
             triggerInterrupt(topApp.packageName, topApp.totalTimeInForeground)
@@ -132,9 +132,7 @@ class GuardianService : Service() {
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Guardián Activo",
-            NotificationManager.IMPORTANCE_MIN
+            CHANNEL_ID, "Guardián Activo", NotificationManager.IMPORTANCE_MIN
         ).apply {
             description = "CENTINELA vigilando en segundo plano"
             setShowBadge(false)

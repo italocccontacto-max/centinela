@@ -15,11 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun NightlyContractScreen(onContractSaved: () -> Unit) {
-    val vm: NightlyContractViewModel = viewModel()
+fun NightlyContractScreen(
+    vm: NightlyContractViewModel,
+    onContractSaved: () -> Unit
+) {
     val saved by vm.saved.collectAsState()
     var text by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -62,7 +63,7 @@ fun NightlyContractScreen(onContractSaved: () -> Unit) {
                     fontSize = 16.sp,
                     lineHeight = 26.sp
                 ),
-                cursorBrush = SolidColor(Color(0xFFFF0000)),
+                cursorBrush = SolidColor(Color(0xFFFFFF00)),
                 decorationBox = { inner ->
                     if (text.isEmpty()) androidx.compose.material3.Text(
                         "Escribe al menos 30 caracteres...",
@@ -76,7 +77,7 @@ fun NightlyContractScreen(onContractSaved: () -> Unit) {
                 onClick = { vm.saveContract(text) },
                 enabled = text.length >= 30,
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF0000),
+                    containerColor = Color(0xFFFFFF00),
                     disabledContainerColor = Color(0xFF1A1A1A)
                 ),
                 modifier = Modifier.fillMaxWidth().height(56.dp)
@@ -86,7 +87,7 @@ fun NightlyContractScreen(onContractSaved: () -> Unit) {
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 4.sp,
-                    color = if (text.length >= 30) Color.White else Color(0xFF333333)
+                    color = if (text.length >= 30) Color.Black else Color(0xFF333333)
                 )
             }
         }
