@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [IntentionContract::class], version = 1, exportSchema = false)
+@Database(entities = [IntentionContract::class], version = 2, exportSchema = false)
 abstract class CentinelaDatabase : RoomDatabase() {
     abstract fun intentionContractDao(): IntentionContractDao
 
@@ -18,7 +18,10 @@ abstract class CentinelaDatabase : RoomDatabase() {
                     context.applicationContext,
                     CentinelaDatabase::class.java,
                     "centinela_db"
-                ).build().also { INSTANCE = it }
+                )
+                .fallbackToDestructiveMigration() // Si el schema cambió, borra y recrea
+                .build()
+                .also { INSTANCE = it }
             }
         }
     }
