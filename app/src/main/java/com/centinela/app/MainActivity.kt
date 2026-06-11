@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.centinela.app.LockActivity
 import com.centinela.app.contract.NightlyContractActivity
 import com.centinela.app.contract.ScreenStateReceiver
 
@@ -71,6 +72,13 @@ class MainActivity : ComponentActivity() {
             },
             onOpenSettings = {
                 startActivity(Intent(this, SettingsActivity::class.java))
+            },
+            onOpenLock = {
+                val prefs = getSharedPreferences("centinela", MODE_PRIVATE)
+                val lockMinutes = prefs.getInt("lock_duration_minutes", 30)
+                val lockUntil = System.currentTimeMillis() + (lockMinutes * 60 * 1000L)
+                prefs.edit().putLong("lock_until", lockUntil).apply()
+                startActivity(Intent(this, LockActivity::class.java))
             }
         )
     }
@@ -106,7 +114,8 @@ fun CentinelaApp(
     onStartGuardian: () -> Unit,
     onOpenContract: () -> Unit,
     onOpenCustomQuestions: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenLock: () -> Unit
 ) {
     val allGranted = hasUsagePermission && hasOverlayPermission
 
@@ -185,6 +194,7 @@ fun CentinelaApp(
                     MenuButton(text = "✦ CONTRATO NOCTURNO", onClick = onOpenContract)
                     MenuButton(text = "✦ MIS PREGUNTAS Y FRASES", onClick = onOpenCustomQuestions)
                     MenuButton(text = "✦ CONFIGURACIÓN", onClick = onOpenSettings)
+                        MenuButton(text = "⚔ BLOQUEO TOTAL", onClick = onOpenLock)
                 }
             }
         }
