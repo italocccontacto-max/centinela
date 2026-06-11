@@ -1,5 +1,6 @@
 package com.centinela.app
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -19,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,6 +30,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -67,15 +70,15 @@ class InterruptActivity : ComponentActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            // FIX: persistir permiso para sobrevivir reinicios
             contentResolver.takePersistableUriPermission(
-                it,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
+            val mimeType = contentResolver.getType(it) ?: ""
+            val isVideo = mimeType.startsWith("video/")
             videoUri = it
-            getSharedPreferences("centinela", MODE_PRIVATE)
-                .edit()
+            getSharedPreferences("centinela", MODE_PRIVATE).edit()
                 .putString("video_uri", it.toString())
+                .putBoolean("media_is_video", isVideo)
                 .apply()
         }
     }
@@ -83,20 +86,21 @@ class InterruptActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("centinela", MODE_PRIVATE)
-
         val savedUri = prefs.getString("video_uri", null)
         if (savedUri != null) videoUri = Uri.parse(savedUri)
-
-        val mediaIsVideo = prefs.getBoolean("media_is_video", true)
+        val mediaIsVideo = prefs.getBoolean("media_is_video", false)
         val videoHasSound = prefs.getBoolean("video_has_sound", true)
         val timeMs = intent.getLongExtra("time_ms", 0L)
         val minutes = timeMs / 60000
+        val packageName = intent.getStringExtra("package_name") ?: ""
 
-        // Cargar preguntas: defaults + custom combinados
-        val customQ = loadCustomQuestions(this)
-        val customP = loadCustomPhrases(this)
-        val allQuestions = DEFAULT_QUESTIONS + customQ
-        val allPhrases = DEFAULT_PHRASES + customP
+        // Preguntas: todas las editables (defaults ya están ahí desde primera apertura)
+        val allQuestions = loadAllQuestions(this)
+        val allPhrases = loadAllPhrases(this)
+
+        // Costo declarado
+        val hourlyValue = prefs.getFloat("hourly_value", 0f)
+        val sessionStartMs = intent.getLongExtra("session_start_ms", System.currentTimeMillis())
 
         setContent {
             InterruptScreen(
@@ -108,6 +112,8 @@ class InterruptActivity : ComponentActivity() {
                 videoHasSound = videoHasSound,
                 apiKey = prefs.getString("api_key", "") ?: "",
                 httpClient = httpClient,
+                hourlyValue = hourlyValue,
+                sessionStartMs = sessionStartMs,
                 onPickVideo = { mediaPicker.launch(arrayOf("image/*", "video/*")) },
                 onContinue = { finish() },
                 onReturn = { finish() }
@@ -131,15 +137,30 @@ fun InterruptScreen(
     videoHasSound: Boolean,
     apiKey: String,
     httpClient: OkHttpClient,
+    hourlyValue: Float,
+    sessionStartMs: Long,
     onPickVideo: () -> Unit,
     onContinue: () -> Unit,
     onReturn: () -> Unit
 ) {
     val context = LocalContext.current
-    val question = remember { questions.random() }
-    val phrase = remember { phrases.random() }
+    val question = remember { if (questions.isNotEmpty()) questions.random() else "¿Esto te acerca a quien quieres ser?" }
+    val phrase = remember { if (phrases.isNotEmpty()) phrases.random() else "La disciplina es elegir entre lo que quieres ahora y lo que quieres más." }
     var aiResponse by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+
+    // Costo declarado en tiempo real
+    var elapsedMs by remember { mutableStateOf(System.currentTimeMillis() - sessionStartMs) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            elapsedMs = System.currentTimeMillis() - sessionStartMs
+        }
+    }
+    val costSoFar = if (hourlyValue > 0f) {
+        val hours = elapsedMs / 3_600_000f
+        hours * hourlyValue
+    } else 0f
 
     LaunchedEffect(Unit) {
         if (apiKey.isNotBlank()) {
@@ -162,16 +183,13 @@ fun InterruptScreen(
                     val resp = httpClient.newCall(req).execute()
                     val json = JSONObject(resp.body?.string() ?: "")
                     aiResponse = json.getJSONArray("content").getJSONObject(0).getString("text")
-                } catch (e: Exception) {
-                    aiResponse = null
-                }
+                } catch (e: Exception) { aiResponse = null }
                 isLoading = false
             }
         }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF080808))) {
-        // Fondo: video o imagen
         videoUri?.let { uri ->
             if (mediaIsVideo) {
                 val player = remember {
@@ -179,8 +197,7 @@ fun InterruptScreen(
                         setMediaItem(MediaItem.fromUri(uri))
                         repeatMode = ExoPlayer.REPEAT_MODE_ALL
                         volume = if (videoHasSound) 1f else 0f
-                        prepare()
-                        play()
+                        prepare(); play()
                     }
                 }
                 DisposableEffect(Unit) { onDispose { player.release() } }
@@ -189,19 +206,17 @@ fun InterruptScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                androidx.compose.foundation.Image(
-                    painter = coil.compose.rememberAsyncImagePainter(uri),
+                AsyncImage(
+                    model = uri,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    contentScale = ContentScale.Crop
                 )
             }
         }
 
-        // Overlay oscuro
         Box(modifier = Modifier.fillMaxSize().background(Color(0xCC000000)))
 
-        // Contenido
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -212,93 +227,84 @@ fun InterruptScreen(
         ) {
             Spacer(Modifier.height(16.dp))
 
-            Text(
-                "⚠ PAUSA OBLIGATORIA",
-                color = Color(0xFFCC0000),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 4.sp
-            )
+            Text("⚠ PAUSA OBLIGATORIA", color = Color(0xFFCC0000),
+                fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
 
-            if (minutes > 0) Text(
-                "$minutes MIN",
-                color = Color(0xFF444444),
-                fontSize = 11.sp,
-                letterSpacing = 2.sp
-            )
+            if (minutes > 0) Text("$minutes MIN", color = Color(0xFF444444),
+                fontSize = 11.sp, letterSpacing = 2.sp)
 
-            Text(
-                question,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                lineHeight = 32.sp
-            )
+            // Costo declarado — solo si el usuario configuró su valor/hora
+            if (costSoFar > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF0D0000))
+                        .border(1.dp, Color(0xFF440000))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("TIEMPO GASTADO HASTA AHORA",
+                            color = Color(0xFF660000), fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "$${"%.2f".format(costSoFar)}",
+                            color = Color(0xFFCC0000),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
+            Text(question, color = Color.White, fontSize = 22.sp,
+                fontWeight = FontWeight.Black, textAlign = TextAlign.Center, lineHeight = 32.sp)
 
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
                     .border(1.dp, Color(0xFF222222))
                     .background(Color(0xFF0D0D0D))
                     .padding(20.dp)
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color(0xFFCC0000),
-                        modifier = Modifier.align(Alignment.Center).size(24.dp)
-                    )
+                    CircularProgressIndicator(color = Color(0xFFCC0000),
+                        modifier = Modifier.align(Alignment.Center).size(24.dp))
                 } else {
-                    Text(
-                        aiResponse ?: phrase,
-                        color = Color(0xFFAAAAAA),
-                        fontSize = 15.sp,
-                        lineHeight = 24.sp,
-                        textAlign = TextAlign.Center
-                    )
+                    Text(aiResponse ?: phrase, color = Color(0xFFAAAAAA),
+                        fontSize = 15.sp, lineHeight = 24.sp, textAlign = TextAlign.Center)
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Botón continuar
             val interactionContinue = remember { MutableInteractionSource() }
             val pressedContinue by interactionContinue.collectIsPressedAsState()
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp)
                     .background(if (pressedContinue) Color(0xFF990000) else Color(0xFFCC0000))
                     .clickable(interactionSource = interactionContinue, indication = null) { onContinue() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("CONTINUAR DE TODAS FORMAS", color = Color.White, fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                Text("CONTINUAR DE TODAS FORMAS", color = Color.White,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             }
 
-            // Botón volver
             val interactionReturn = remember { MutableInteractionSource() }
             val pressedReturn by interactionReturn.collectIsPressedAsState()
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp)
                     .border(1.dp, Color(0xFF00CC44))
                     .background(if (pressedReturn) Color(0xFF004422) else Color.Transparent)
                     .clickable(interactionSource = interactionReturn, indication = null) { onReturn() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("← VOLVER", color = Color(0xFF00CC44), fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                Text("← VOLVER", color = Color(0xFF00CC44),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             }
 
-            // Botón cambiar fondo
-            Text(
-                "cambiar fondo",
-                color = Color(0xFF333333),
-                fontSize = 11.sp,
-                modifier = Modifier.clickable { onPickVideo() }
-            )
+            Text("cambiar fondo", color = Color(0xFF333333), fontSize = 11.sp,
+                modifier = Modifier.clickable { onPickVideo() })
 
             Spacer(Modifier.height(16.dp))
         }
