@@ -1,0 +1,14 @@
+{
+  "name": "Centinela Android Build",
+  "image": "mcr.microsoft.com/devcontainers/java:1-17-bullseye",
+  "postCreateCommand": "bash .devcontainer/setup-android-sdk.sh",
+  "remoteEnv": {
+    "ANDROID_HOME": "${containerWorkspaceFolder}/.android-sdk",
+    "ANDROID_SDK_ROOT": "${containerWorkspaceFolder}/.android-sdk"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["vscjava.vscode-gradle"]
+    }
+  }
+}
